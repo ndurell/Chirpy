@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
+
+	"github.com/ndurell/Chirpy/internal/database"
 )
 
 type chirp struct {
@@ -12,12 +15,15 @@ type chirp struct {
 }
 
 type validChirp struct {
-	CleanBody string `json:"cleaned_body"`
+	Id   int    `json:"id"`
+	Body string `json:"body"`
 }
 
 var BAD_WORDS = []string{"kerfuffle", "sharbert", "fornax"}
 
-func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
+var chirpCount = 0
+
+func createChirp(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	incomingChirp := chirp{}
@@ -31,9 +37,23 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respBody := validChirp{
-		CleanBody: cleanChirp(incomingChirp),
+		Id:   chirpCount,
+		Body: cleanChirp(incomingChirp),
 	}
-	respondWithJSON(w, 200, respBody)
+	db, err := database.NewDB("database.json")
+	if err != nil {
+		respondWithError(w, 500, "Database error")
+		return
+	}
+	log.Printf("Creating chirp: %s", respBody.Body)
+	chirp, err := db.CreateChirp(respBody.Body)
+	if err != nil {
+		respondWithError(w, 500, "Database error")
+		return
+	}
+	log.Printf("Created chirp: %s", chirp.Body)
+
+	respondWithJSON(w, 201, chirp)
 }
 
 func cleanChirp(c chirp) string {
@@ -46,4 +66,18 @@ func cleanChirp(c chirp) string {
 		}
 	}
 	return strings.Join(words, " ")
+}
+
+func getChirps(w http.ResponseWriter, r *http.Request) {
+	db, err := database.NewDB("database.json")
+	if err != nil {
+		respondWithError(w, 500, "Database error")
+		return
+	}
+	chirps, err := db.GetChirps()
+	if err != nil {
+		respondWithError(w, 500, "Database error")
+		return
+	}
+	respondWithJSON(w, 200, chirps)
 }

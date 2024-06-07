@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bcrypt"
 	"encoding/json"
 	"log"
 	"os"
@@ -17,8 +18,15 @@ type Chirp struct {
 	Body string `json:"body"`
 }
 
+type User struct {
+	Id       int    `json:"id"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 type DBStructure struct {
 	Chirps map[int]Chirp `json:"chirps"`
+	Users  map[int]User  `json:"users"`
 }
 
 // NewDB creates a new database connection
@@ -36,6 +44,28 @@ func NewDB(path string) (*DB, error) {
 
 }
 
+func (db *DB) CreateUser(email string, password string) (User, error) {
+	users, err := db.loadDB()
+	if err != nil {
+		log.Fatal(err)
+		return User{}, err
+	}
+	if users.Users == nil {
+		users.Users = make(map[int]User)
+	}
+	user := User{
+		Id:       len(users.Users) + 1,
+		Email:    email,
+		password: bcrypt.GenerateFromPassword(password),
+	}
+	users.Users[user.Id] = user
+	err = db.writeDB(users)
+	if err != nil {
+		return User{}, err
+	}
+	return user, nil
+}
+
 // CreateChirp creates a new chirp and saves it to disk
 func (db *DB) CreateChirp(body string) (Chirp, error) {
 	chirps, err := db.loadDB()
@@ -50,7 +80,6 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 		Id:   len(chirps.Chirps) + 1,
 		Body: body,
 	}
-	log.Printf("Creating chirp: %d %s", chirp.Id, chirp.Body)
 	chirps.Chirps[chirp.Id] = chirp
 	err = db.writeDB(chirps)
 	if err != nil {
@@ -91,6 +120,19 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 		chirps = append(chirps, chirp)
 	}
 	return chirps, nil
+}
+
+func (db *DB) GetChirp(chirpId int) (Chirp, error) {
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		log.Fatal(err)
+		return Chirp{}, err
+	}
+	chirp, ok := dbStructure.Chirps[chirpId]
+	if !ok {
+		return Chirp{}, nil
+	}
+	return chirp, nil
 }
 
 // loadDB reads the database file into memory

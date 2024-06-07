@@ -4,18 +4,27 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/ndurell/Chirpy/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits int
+	db             *database.DB
 }
 
 func main() {
 	const filepathRoot = "."
 	const port = "8080"
 
+	db, err := database.NewDB("database.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	apiCfg := apiConfig{
 		fileserverHits: 0,
+		db:             db,
 	}
 
 	mux := http.NewServeMux()
@@ -23,8 +32,10 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("/api/reset", apiCfg.handlerReset)
-	mux.HandleFunc("POST /api/chirps", createChirp)
-	mux.HandleFunc("GET /api/chirps", getChirps)
+	mux.HandleFunc("POST /api/chirps", apiCfg.createChirp)
+	mux.HandleFunc("GET /api/chirps", apiCfg.getChirps)
+	mux.HandleFunc("GET /api/chirps/{chirpId}", apiCfg.getChirp)
+	mux.HandleFunc("POST /api/users", apiCfg.createUser)
 
 	srv := &http.Server{
 		Addr:    ":" + port,

@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-
-	"github.com/ndurell/Chirpy/internal/database"
 )
 
 type chirp struct {
@@ -23,7 +21,7 @@ var BAD_WORDS = []string{"kerfuffle", "sharbert", "fornax"}
 
 var chirpCount = 0
 
-func createChirp(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	incomingChirp := chirp{}
@@ -40,13 +38,8 @@ func createChirp(w http.ResponseWriter, r *http.Request) {
 		Id:   chirpCount,
 		Body: cleanChirp(incomingChirp),
 	}
-	db, err := database.NewDB("database.json")
-	if err != nil {
-		respondWithError(w, 500, "Database error")
-		return
-	}
 	log.Printf("Creating chirp: %s", respBody.Body)
-	chirp, err := db.CreateChirp(respBody.Body)
+	chirp, err := cfg.db.CreateChirp(respBody.Body)
 	if err != nil {
 		respondWithError(w, 500, "Database error")
 		return
@@ -66,18 +59,4 @@ func cleanChirp(c chirp) string {
 		}
 	}
 	return strings.Join(words, " ")
-}
-
-func getChirps(w http.ResponseWriter, r *http.Request) {
-	db, err := database.NewDB("database.json")
-	if err != nil {
-		respondWithError(w, 500, "Database error")
-		return
-	}
-	chirps, err := db.GetChirps()
-	if err != nil {
-		respondWithError(w, 500, "Database error")
-		return
-	}
-	respondWithJSON(w, 200, chirps)
 }

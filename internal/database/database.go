@@ -1,11 +1,12 @@
 package database
 
 import (
-	"bcrypt"
 	"encoding/json"
 	"log"
 	"os"
 	"sync"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type DB struct {
@@ -53,10 +54,15 @@ func (db *DB) CreateUser(email string, password string) (User, error) {
 	if users.Users == nil {
 		users.Users = make(map[int]User)
 	}
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatal(err)
+		return User{}, err
+	}
 	user := User{
 		Id:       len(users.Users) + 1,
 		Email:    email,
-		password: bcrypt.GenerateFromPassword(password),
+		Password: string(hashedPassword),
 	}
 	users.Users[user.Id] = user
 	err = db.writeDB(users)
@@ -122,6 +128,33 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 	return chirps, nil
 }
 
+func (db *DB) GetUser(email string) (*User, error) {
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	for _, user := range dbStructure.Users {
+		if user.Email == email {
+			return &user, nil
+		}
+	}
+	return nil, nil
+}
+
+func (db *DB) GetUserById(userId int) *User {
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		log.Fatal(err)
+		return nil
+	}
+	user, ok := dbStructure.Users[userId]
+	if !ok {
+		return nil
+	}
+	return &user
+}
+
 func (db *DB) GetChirp(chirpId int) (Chirp, error) {
 	dbStructure, err := db.loadDB()
 	if err != nil {
@@ -163,6 +196,33 @@ func (db *DB) writeDB(dbStructure DBStructure) error {
 	err = os.WriteFile(db.path, data, 0644)
 	if err != nil {
 		log.Fatal(err)
+		return err
+	}
+	return nil
+}
+
+func (db *DB) UpdateUser(id int, email string, password string) error {
+	users, err := db.loadDB()
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	if users.Users == nil {
+		users.Users = make(map[int]User)
+	}
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	user := User{
+		Id:       id,
+		Email:    email,
+		Password: string(hashedPassword),
+	}
+	users.Users[id] = user
+	err = db.writeDB(users)
+	if err != nil {
 		return err
 	}
 	return nil
